@@ -57,15 +57,13 @@ print(f"Combined CSV saved to {combined_csv_file}")
 # Function to calculate financial metrics using yfinance
 def calculate_yf_metrics(symbol):
     stock = yf.Ticker(symbol)
+    info = stock.info
    
+    # Extract financial metrics
     try:
-        # Fetch the latest financial data
-        info = stock.info
-       
-        # Example calculations (ensure you have the required data)
-        pe_ratio = info.get('forwardEps', 'Data Required') / info.get('currentPrice', 1)
-        pb_ratio = info.get('priceToBook', 'Data Required')
-        market_cap = info.get('marketCap', 'Data Required')
+        pe_ratio = info.get('forwardEps', None) / info.get('currentPrice', 1)
+        pb_ratio = info.get('priceToBook', None)
+        market_cap = info.get('marketCap', None)
        
         return {
             'PE Ratio': pe_ratio,
@@ -96,7 +94,75 @@ def calculate_basic_metrics(df):
    
     return metrics
 
-# Calculate metrics for each unique stock symbol or file
+# Function to calculate technical indicators
+def calculate_technical_indicators(df):
+    df = df.copy()  # Avoid modifying the original DataFrame
+   
+    # Calculate Moving Averages
+    df['MA20'] = df['Close'].rolling(window=20).mean()
+    df['MA50'] = df['Close'].rolling(window=50).mean()
+   
+    # Calculate Relative Strength Index (RSI)
+    delta = df['Close'].diff()
+    gain = delta.where(delta > 0, 0)
+    loss = -delta.where(delta < 0, 0)
+   
+    avg_gain = gain.rolling(window=14).mean()
+    avg_loss = loss.rolling(window=14).mean()
+   
+    rs = avg_gain / avg_loss
+    df['RSI'] = 100 - (100 / (1 + rs))
+   
+    # Calculate Bollinger Bands
+    df['BB20_Mid'] = df['Close'].rolling(window=20).mean()
+    df['BB20_Std'] = df['Close'].rolling(window=20).std()
+    df['BB20_Upper'] = df['BB20_Mid'] + (df['BB20_Std'] * 2)
+    df['BB20_Lower'] = df['BB20_Mid'] - (df['BB20_Std'] * 2)
+   
+    return df
+
+# Function to plot technical indicators
+def plot_technical_indicators(df, output_dir, symbol):
+    plt.figure(figsize=(14, 10))
+   
+    # Plot closing price and moving averages
+    plt.subplot(3, 1, 1)
+    plt.plot(df['Date'], df['Close'], label='Close Price', color='blue')
+    plt.plot(df['Date'], df['MA20'], label='20-Day MA', color='orange')
+    plt.plot(df['Date'], df['MA50'], label='50-Day MA', color='red')
+    plt.title(f'{symbol} - Closing Price and Moving Averages')
+    plt.xlabel('Date')
+    plt.ylabel('Price')
+    plt.legend()
+    plt.grid(True)
+   
+    # Plot RSI
+    plt.subplot(3, 1, 2)
+    plt.plot(df['Date'], df['RSI'], label='RSI', color='green')
+    plt.axhline(70, linestyle='--', color='red', alpha=0.5)
+    plt.axhline(30, linestyle='--', color='blue', alpha=0.5)
+    plt.title(f'{symbol} - Relative Strength Index (RSI)')
+    plt.xlabel('Date')
+    plt.ylabel('RSI')
+    plt.legend()
+    plt.grid(True)
+   
+    # Plot Bollinger Bands
+    plt.subplot(3, 1, 3)
+    plt.plot(df['Date'], df['Close'], label='Close Price', color='blue')
+    plt.plot(df['Date'], df['BB20_Upper'], label='Upper Bollinger Band', color='red')
+    plt.plot(df['Date'], df['BB20_Lower'], label='Lower Bollinger Band', color='green')
+    plt.title(f'{symbol} - Bollinger Bands')
+    plt.xlabel('Date')
+    plt.ylabel('Price')
+    plt.legend()
+    plt.grid(True)
+   
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f'{symbol}_technical_indicators.png'))
+    plt.close()
+
+# Calculate metrics and plot indicators for each unique stock symbol or file
 metrics_list = []
 
 for file in csv_files + fns_pid_files:
@@ -122,6 +188,12 @@ for file in csv_files + fns_pid_files:
         'Dividend Yield': basic_metrics['Dividend Yield'],
         'Market Cap': yf_metrics['Market Cap']
     })
+   
+    # Calculate technical indicators
+    symbol_df = calculate_technical_indicators(symbol_df)
+   
+    # Plot technical indicators
+    plot_technical_indicators(symbol_df, output_directory, symbol)
 
 # Create a DataFrame from the metrics list
 metrics_df = pd.DataFrame(metrics_list)
@@ -135,60 +207,4 @@ except PermissionError as e:
 except Exception as e:
     print(f"An error occurred: {e}")
 
-# Function to plot financial metrics
-def plot_financial_metrics(metrics_df, output_dir):
-    metrics = ['PE Ratio', 'PB Ratio', 'Dividend Yield', 'Market Cap']
-   
-    for metric in metrics:
-        plt.figure(figsize=(14, 7))
-       
-        # Replace 'Data Required' with NaN for better plotting
-        metric_values = pd.to_numeric(metrics_df[metric].replace('Data Required', pd.NA))
-        plt.bar(metrics_df['Stock Symbol'], metric_values.fillna(0), color='cyan')
-        plt.title(f'{metric} for Stocks')
-        plt.xlabel('Stock Symbol')
-        plt.ylabel(metric)
-        plt.xticks(rotation=90)
-        plt.grid(axis='y')
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, f'{metric}_plot.png'))
-        plt.close()
-
-# Generate and save plots for financial metrics
-plot_financial_metrics(metrics_df, output_directory)
-
-print(f"Financial metrics plots saved to {output_directory}")
-
-def main():
-    """
-    Main function to run the stock analysis application.
-
-    Presents a menu-driven interface for users to select various stock analysis
-    functionalities, including data fetching, plotting, and performance
-    visualization. The script runs in a loop until the user chooses to exit.
-    """
-    while True:
-        print("\nStock Data Analysis Menu")
-        print("1. Process and Combine CSV Files")
-        print("2. Calculate and Save Financial Metrics")
-        print("3. Plot Financial Metrics")
-        print("0. Exit")
-
-        choice = input("Enter your choice: ")
-
-        if choice == "1":
-            # Already processed in this script; this choice can be used for additional CSV processing if needed
-            print("CSV files have been processed and combined.")
-        elif choice == "2":
-            # This option is integrated in the script above
-            print("Financial metrics have been calculated and saved.")
-        elif choice == "3":
-            # This option is integrated in the script above
-            print("Financial metrics plots have been generated and saved.")
-        elif choice == "0":
-            break
-        else:
-            print("Invalid choice. Please try again.")
-
-if __name__ == "__main__":
-    main()
+print(f"Technical indicators plots saved to {output_directory}")
