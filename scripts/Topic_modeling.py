@@ -3,6 +3,7 @@ import os
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 import spacy
+import matplotlib.pyplot as plt
 
 # Load spaCy model
 nlp = spacy.load("en_core_web_sm")
@@ -43,19 +44,24 @@ else:
     lda = LatentDirichletAllocation(n_components=num_topics, random_state=0)
     lda.fit(X)
 
-    # Display topics
+    # Create a directory to save plots if it doesn't exist
+    output_dir = r'C:\Users\User\Desktop\10Acadamy\Week 1\Week-1\Publisher_Data\Topic_Visualizations'
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Display topics and save plots
     feature_names = vectorizer.get_feature_names_out()
     for topic_idx, topic in enumerate(lda.components_):
-        print(f"Topic #{topic_idx + 1}:")
-        print(" ".join([feature_names[i] for i in topic.argsort()[:-11:-1]]))
-        print()
+        plt.figure(figsize=(10, 6))
+        top_words = [feature_names[i] for i in topic.argsort()[:-11:-1]]
+        top_values = [topic[i] for i in topic.argsort()[:-11:-1]]
 
-    # Display top keywords for each topic
-    def print_top_keywords_for_topic(lda_model, vectorizer, n_words=10):
-        feature_names = vectorizer.get_feature_names_out()
-        for topic_idx, topic in enumerate(lda_model.components_):
-            print(f"Topic #{topic_idx + 1}:")
-            print(" ".join([feature_names[i] for i in topic.argsort()[:-n_words - 1:-1]]))
-            print()
+        plt.barh(top_words, top_values, color='skyblue')
+        plt.xlabel('Importance')
+        plt.title(f'Topic #{topic_idx + 1}')
+        plt.gca().invert_yaxis()  # To have the highest values at the top
 
-    print_top_keywords_for_topic(lda, vectorizer)
+        # Save the plot as a JPG file
+        plt.savefig(os.path.join(output_dir, f'topic_{topic_idx + 1}.jpg'))
+        plt.close()
+
+    print(f"Topic visualizations saved to {output_dir}")
